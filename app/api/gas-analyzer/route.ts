@@ -13,6 +13,7 @@ type ExplorerTx = {
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const address = searchParams.get("address");
+  const periodParam = searchParams.get("period") ?? "3m"; // "2m" | "3m"
 
   if (!address) {
     return NextResponse.json({ error: "Missing address" }, { status: 400 });
@@ -26,9 +27,16 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Always analyze ~3 months for now (free Etherscan tier friendly)
-  const months = 3;
-  const windowLabel = "3 months";
+  let months = 3;
+  let windowLabel = "3 months";
+  if (periodParam === "2m") {
+    months = 2;
+    windowLabel = "2 months";
+  }
+
+  // We still only ever look back at most 3 months (free Etherscan tier friendly)
+  if (months > 3) months = 3;
+
   const secondsPerMonth = 30 * 24 * 60 * 60;
   const cutoffTimestamp =
     Math.floor(Date.now() / 1000) - months * secondsPerMonth;
@@ -63,6 +71,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         address,
         chain: "Base",
+        period: periodParam,
         windowLabel,
         totalGasEth: 0,
         txCount: 0,
@@ -96,7 +105,6 @@ export async function GET(req: NextRequest) {
 
     const txs: ExplorerTx[] = json.result;
 
-    // Filter into the last 3 months
     const periodTxs = txs.filter((tx) => {
       const ts = Number(tx.timeStamp || "0");
       return ts >= cutoffTimestamp;
@@ -106,6 +114,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         address,
         chain: "Base",
+        period: periodParam,
         windowLabel,
         totalGasEth: 0,
         txCount: 0,
@@ -195,6 +204,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       address,
       chain: "Base",
+      period: periodParam,
       windowLabel,
       totalGasEth,
       txCount,
