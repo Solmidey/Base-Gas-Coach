@@ -143,7 +143,7 @@ export async function GET(req: NextRequest) {
         balanceEth: null,
         suggestions: [
           `We couldn't find any transactions for this address on Base in the last ${windowLabel}.`,
-          "Action: bridge a small amount to Base, pick 1–2 protocols you actually like, and do 3–5 meaningful transactions (swaps, deposits, points programs) instead of random spam.",
+          "Action: bridge a small amount to Base, pick one or two apps you like, and do a few simple swaps or deposits instead of random tests.",
         ],
         protocolTips: mapProtocolIdsToTips(["base_bridge", "aerodrome"]),
       });
@@ -223,7 +223,7 @@ export async function GET(req: NextRequest) {
         balanceEth,
         suggestions: [
           `No Base transactions for this address in the last ${windowLabel}.`,
-          "Action: when you move to Base, treat gas like marketing spend—focus on protocols that reward activity (points, yield, airdrops) so almost every tx has upside.",
+          "Action: when you move to Base, think of gas as small fees you pay to grow your positions. Try to make every transaction do something useful for you.",
         ],
         protocolTips: mapProtocolIdsToTips(["base_bridge"]),
       });
@@ -278,7 +278,7 @@ export async function GET(req: NextRequest) {
       baseSuggestions.push(
         `Your average gas per transaction on Base over the last ${windowLabel} is ${avgGasPerTx.toFixed(
           5,
-        )} ETH. Action: batch related actions and avoid 'testing' tiny trades on mainnet—use testnets or simulations first.`,
+        )} ETH. Try to group related actions together so you pay this fee fewer times.`,
       );
       baseProtocolIds.push("uniswap_base");
     }
@@ -287,39 +287,39 @@ export async function GET(req: NextRequest) {
       baseSuggestions.push(
         `About ${(smallTxRatio * 100).toFixed(
           1,
-        )}% of your transactions are low-value but still pay full gas. Action: set a personal minimum size for trades/transfers and group micro-moves into fewer, larger transactions.`,
+        )}% of your transactions move very small amounts. This makes gas feel heavier. Try to avoid many tiny moves and do fewer, bigger ones when possible.`,
       );
       baseProtocolIds.push("aerodrome");
     }
 
     if (failedTxRatio > 0.05) {
       baseSuggestions.push(
-        `Roughly ${(failedTxRatio * 100).toFixed(
+        `Around ${(failedTxRatio * 100).toFixed(
           1,
-        )}% of your transactions are failing. Action: double-check slippage, balance and approval status; for risky interactions, start with one small 'test' tx instead of spamming retries.`,
+        )}% of your transactions are failing. Each failed tx still burns gas. Before you send a tx, double-check you have enough balance and the settings are correct.`,
       );
       baseProtocolIds.push("uniswap_base");
     }
 
     if (zeroValueRatio > 0.25) {
       baseSuggestions.push(
-        `Around ${(zeroValueRatio * 100).toFixed(
+        `Roughly ${(zeroValueRatio * 100).toFixed(
           1,
-        )}% of your transactions move no direct value (approvals/ops). Action: regularly revoke approvals for dead protocols and prioritize txs that generate yield, unlock points or build positions you actually care about.`,
+        )}% of your transactions do not move any ETH (they are approvals or setup steps). These are fine sometimes, but try to clean up old approvals and avoid extra steps you no longer need.`,
       );
       baseProtocolIds.push("beefy_base", "aave_base");
     }
 
     if (highValue > 0 && totalGasEth / (highValue || 1) > 0.002) {
       baseSuggestions.push(
-        "You have some larger value moves where gas and slippage eat into your upside. Action: when size is big, compare 1–2 different routes/aggregators on Base before sending and avoid peak volatility windows.",
+        "You have some bigger moves where gas and slippage can hurt you. For those, take a moment to compare one or two different swap routes before you click confirm.",
       );
       baseProtocolIds.push("uniswap_base");
     }
 
     if (baseSuggestions.length === 0) {
       baseSuggestions.push(
-        `Your Base gas usage over the last ${windowLabel} looks fairly efficient. Action: keep focusing activity on protocols that reward long-term usage and schedule a quick monthly review of your last 10 txs to prune unnecessary habits.`,
+        `Your Base gas usage over the last ${windowLabel} looks quite clean. Still, it helps to check your last few transactions every month and ask: did this fee really move me forward?`,
       );
       baseProtocolIds.push("aave_base", "beefy_base");
     }
@@ -327,7 +327,7 @@ export async function GET(req: NextRequest) {
     let suggestions = baseSuggestions;
     let protocolTips = mapProtocolIdsToTips(baseProtocolIds);
 
-    // --- Groq agent: advanced, wallet-specific DeFi analysis ---
+    // --- Groq agent: simple-language, wallet-specific DeFi analysis ---
     const groqKey = process.env.GROQ_API_KEY;
     if (groqKey) {
       try {
@@ -367,11 +367,14 @@ export async function GET(req: NextRequest) {
                 {
                   role: "system",
                   content:
-                    "You are Base Gas Coach, an advanced DeFi power user who reads EVM wallet history like a trading journal. You are given: (1) stats for the last 2 months on Base, (2) a small transaction sample, (3) the current ETH balance on Base, and (4) a catalog of Base-native protocols.\n" +
-                    "- Focus on gas usage patterns, failed transactions, approvals, and how much of the wallet's gas is going to productive activity (yield, points, LP, restaking) vs waste.\n" +
-                    "- Speak as if you are coaching a friend who already understands crypto basics.\n" +
-                    "- Avoid generic advice that could apply to any wallet. Every tip MUST reference at least one concrete metric, ratio, or pattern from the data (e.g. failedTxRatio, zeroValueRatio, txCount, totalGasEth, balanceEth).\n" +
-                    "- Do NOT talk about prices, future returns, or tell the user to buy/hold/sell specific assets. Stay on operational decisions: batching, which kinds of protocols to route activity through, and how to reduce unnecessary gas burn.",
+                    "You are Base Gas Coach, a friendly DeFi guide for people using the Base chain.\n" +
+                    "You are given: (1) stats for the last 2 months on Base, (2) a small transaction sample, (3) the current ETH balance on Base, and (4) a catalog of Base-native protocols.\n" +
+                    "- Speak in simple, clear English that anyone can follow, even if this is their first time using DeFi.\n" +
+                    "- Prefer short sentences and plain words. Avoid heavy jargon.\n" +
+                    "- If you must use a technical word (like 'liquidity pool' or 'slippage'), add a short explanation in brackets, e.g. 'slippage (price moving while your trade is pending)'.\n" +
+                    "- Focus on what THIS wallet actually did: gas usage, failed transactions, approvals, small frequent moves, and whether gas is going to useful actions (yield, points, LP) or waste.\n" +
+                    "- Sound like you are coaching a friend. Be kind but honest.\n" +
+                    "- Do NOT give generic advice that could apply to everyone. Every tip MUST mention at least one concrete metric, ratio, or pattern from the data (failedTxRatio, zeroValueRatio, txCount, totalGasEth, avgGasPerTx, balanceEth, or something obvious from the sample).",
                 },
                 {
                   role: "user",
@@ -382,10 +385,12 @@ export async function GET(req: NextRequest) {
                 {
                   role: "user",
                   content:
-                    'Return ONLY a JSON object with this shape: {"tips":[{"tip":"one concrete improvement tailored to this wallet","protocol_ids":["aerodrome","aave_base"],"reasons_by_protocol":{"aerodrome":"why this specific wallet should consider Aerodrome given its patterns","aave_base":"why this wallet should consider Aave"}}, ...]}. \n' +
-                    "- 3 to 6 tips total.\n" +
-                    "- At least one tip must explicitly mention the wallet balance in ETH and how that should change behaviour (for small balances, avoiding gas-wasting micro-moves; for larger balances, batching and better routing).\n" +
-                    "- At least one tip must explicitly mention one of these ratios or counts: failedTxRatio, zeroValueRatio, smallTxRatio, txCount, totalGasEth, or avgGasPerTx.\n" +
+                    'Return ONLY a JSON object with this shape: {"tips":[{"tip":"one concrete improvement tailored to this wallet","protocol_ids":["aerodrome","aave_base"],"reasons_by_protocol":{"aerodrome":"why this specific wallet should consider Aerodrome given its patterns","aave_base":"why this wallet should consider Aave"}}, ...]}.\n' +
+                    "- Write 3 to 6 tips total.\n" +
+                    "- Each tip must be 1–3 short sentences, using simple language and no fluff.\n" +
+                    "- At least one tip must clearly mention the wallet balance in ETH (balanceEth) and how that should change behaviour. For small balances, focus on avoiding many tiny transactions. For larger balances, focus on batching and better routing.\n" +
+                    "- At least one tip must clearly mention one of these: failedTxRatio, zeroValueRatio, smallTxRatio, txCount, totalGasEth, or avgGasPerTx, and explain what that number means in plain language.\n" +
+                    "- Every tip must be wallet-specific. Do not say 'everyone should' or 'always do this'. Talk directly about what THIS wallet is doing and how to improve it.\n" +
                     "- protocol_ids must only use ids from the provided catalog. If no protocol is relevant for a tip, use an empty array and omit reasons_by_protocol for that tip.",
                 },
               ],
