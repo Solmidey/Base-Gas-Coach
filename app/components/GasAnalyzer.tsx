@@ -6,7 +6,6 @@ import { AlertCircle, DollarSign, TrendingDown, Zap } from "lucide-react";
 type Analysis = {
   address: string;
   chain: string;
-  period?: string;
   windowLabel?: string;
   totalGasEth: number;
   txCount: number;
@@ -21,13 +20,11 @@ type GasAnalyzerProps = {
   address?: string;
 };
 
-type PeriodKey = "3m" | "6m" | "1y";
-
 export default function GasAnalyzer({ address }: GasAnalyzerProps) {
   const [data, setData] = useState<Analysis | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [period, setPeriod] = useState<PeriodKey>("3m");
+  const [comingSoon, setComingSoon] = useState<string | null>(null);
 
   useEffect(() => {
     if (!address) {
@@ -42,9 +39,10 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
       try {
         setLoading(true);
         setError(null);
+        setComingSoon(null);
 
         const res = await fetch(
-          `/api/gas-analyzer?address=${address}&period=${period}`,
+          `/api/gas-analyzer?address=${address}`,
           { signal: controller.signal }
         );
 
@@ -70,25 +68,40 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
     run();
 
     return () => controller.abort();
-  }, [address, period]);
+  }, [address]);
 
-  const periodLabel =
-    period === "6m" ? "6 months" : period === "1y" ? "1 year" : "3 months";
+  const handleComingSoonClick = () => {
+    setComingSoon(
+      "Only the last 3 months are analyzed for now (free Etherscan tier). 6 months and 1 year views are coming soon."
+    );
+  };
 
-  const renderPeriodButton = (key: PeriodKey, label: string) => {
-    const isActive = period === key;
+  const periodLabel = data?.windowLabel || "3 months";
+
+  const renderPeriodButton = (
+    key: "3m" | "6m" | "1y",
+    label: string
+  ) => {
+    if (key === "3m") {
+      return (
+        <button
+          key={key}
+          className="inline-flex items-center justify-center rounded-full px-3 py-1 text-[11px] font-medium bg-emerald-500 text-slate-950"
+        >
+          {label}
+        </button>
+      );
+    }
+
+    // disabled “Coming soon” buttons
     return (
       <button
         key={key}
-        onClick={() => setPeriod(key)}
-        className={
-          "inline-flex items-center justify-center rounded-full px-3 py-1 text-[11px] font-medium transition " +
-          (isActive
-            ? "bg-emerald-500 text-slate-950"
-            : "bg-slate-900 text-slate-300 hover:bg-slate-800")
-        }
+        type="button"
+        onClick={handleComingSoonClick}
+        className="inline-flex items-center justify-center rounded-full px-3 py-1 text-[11px] font-medium bg-slate-900 text-slate-400 border border-slate-700/60 hover:bg-slate-800"
       >
-        {label}
+        {label} · soon
       </button>
     );
   };
@@ -106,8 +119,8 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
   if (loading) {
     return (
       <div className="mt-6 rounded-xl border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-300">
-        Analyzing your Base activity for the last {periodLabel}… this might take a
-        few seconds.
+        Analyzing your Base activity for the last 3 months… this might take a few
+        seconds.
       </div>
     );
   }
@@ -127,14 +140,15 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
   if (!data) return null;
 
   const isEmpty = data.txCount === 0;
-  const windowLabel = data.windowLabel || periodLabel;
 
   return (
     <div className="mt-6 space-y-4">
       <div className="flex items-center justify-between">
         <div className="text-xs text-slate-400">
           Time window:{" "}
-          <span className="font-medium text-slate-100">{windowLabel}</span>
+          <span className="font-medium text-slate-100">
+            {periodLabel} (currently supported)
+          </span>
         </div>
         <div className="flex gap-2">
           {renderPeriodButton("3m", "3 months")}
@@ -143,9 +157,15 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
         </div>
       </div>
 
+      {comingSoon && (
+        <p className="text-[11px] text-amber-300/90">
+          {comingSoon}
+        </p>
+      )}
+
       <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
         <div className="text-xs uppercase tracking-wide text-slate-400">
-          Gas summary on {data.chain} ({windowLabel})
+          Gas summary on {data.chain} ({periodLabel})
         </div>
         <div className="mt-1 break-all text-xs text-slate-500">
           {data.address}
@@ -198,7 +218,7 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
             </div>
             <p className="mb-1">
               We didn&apos;t find transactions for this address on Base in the last{" "}
-              {windowLabel}. The tips below focus on how to start in a way that
+              {periodLabel}. The tips below focus on how to start in a way that
               maximizes upside and minimizes wasted gas.
             </p>
           </>
@@ -218,7 +238,7 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
             </p>
             <p className="mt-2 text-slate-400">
               Use this to see where gas is leaking versus where it helps you earn in
-              the last {windowLabel}.
+              the last {periodLabel}.
             </p>
           </>
         )}

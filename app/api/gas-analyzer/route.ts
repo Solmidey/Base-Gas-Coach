@@ -13,7 +13,6 @@ type ExplorerTx = {
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const address = searchParams.get("address");
-  const periodParam = searchParams.get("period") ?? "3m";
 
   if (!address) {
     return NextResponse.json({ error: "Missing address" }, { status: 400 });
@@ -27,23 +26,16 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  let months = 3;
-  let windowLabel = "3 months";
-  if (periodParam === "6m") {
-    months = 6;
-    windowLabel = "6 months";
-  } else if (periodParam === "1y") {
-    months = 12;
-    windowLabel = "1 year";
-  }
-
+  // Always analyze ~3 months for now (free Etherscan tier friendly)
+  const months = 3;
+  const windowLabel = "3 months";
   const secondsPerMonth = 30 * 24 * 60 * 60;
   const cutoffTimestamp =
     Math.floor(Date.now() / 1000) - months * secondsPerMonth;
 
   const params = new URLSearchParams({
     apikey: apiKey,
-    chainid: "8453",
+    chainid: "8453", // Base
     module: "account",
     action: "txlist",
     address,
@@ -71,7 +63,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         address,
         chain: "Base",
-        period: periodParam,
         windowLabel,
         totalGasEth: 0,
         txCount: 0,
@@ -105,6 +96,7 @@ export async function GET(req: NextRequest) {
 
     const txs: ExplorerTx[] = json.result;
 
+    // Filter into the last 3 months
     const periodTxs = txs.filter((tx) => {
       const ts = Number(tx.timeStamp || "0");
       return ts >= cutoffTimestamp;
@@ -114,7 +106,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         address,
         chain: "Base",
-        period: periodParam,
         windowLabel,
         totalGasEth: 0,
         txCount: 0,
@@ -124,7 +115,7 @@ export async function GET(req: NextRequest) {
         zeroValueRatio: 0,
         suggestions: [
           `No Base transactions for this address in the last ${windowLabel}.`,
-          "Action: when you move to Base, treat gas like marketing spend: pick protocols that reward activity (points, yield, airdrops) so almost every tx has upside.",
+          "Action: when you move to Base, treat gas like marketing spend—focus on protocols that reward activity (points, yield, airdrops) so almost every tx has upside.",
         ],
       });
     }
@@ -169,7 +160,7 @@ export async function GET(req: NextRequest) {
       suggestions.push(
         `About ${(smallTxRatio * 100).toFixed(
           1
-        )}% of your transactions are low-value but still pay full gas. Action: set a personal minimum size for trades and transfers, and group micro-moves into fewer, larger transactions.`
+        )}% of your transactions are low-value but still pay full gas. Action: set a personal minimum size for trades/transfers and group micro-moves into fewer, larger transactions.`
       );
     }
 
@@ -177,7 +168,7 @@ export async function GET(req: NextRequest) {
       suggestions.push(
         `Roughly ${(failedTxRatio * 100).toFixed(
           1
-        )}% of your transactions are failing. Action: before sending, double-check slippage, balance, and approval status; for risky interactions, start with one small 'test' tx instead of spamming retries.`
+        )}% of your transactions are failing. Action: before sending, double-check slippage, balance and approval status; for risky interactions, start with one small 'test' tx instead of spamming retries.`
       );
     }
 
@@ -185,13 +176,13 @@ export async function GET(req: NextRequest) {
       suggestions.push(
         `Around ${(zeroValueRatio * 100).toFixed(
           1
-        )}% of your transactions move no direct value (approvals/operations). Action: regularly revoke approvals for dead protocols, and prioritize txs that either generate yield, unlock points, or move you into positions you actually care about.`
+        )}% of your transactions move no direct value (approvals/ops). Action: regularly revoke approvals for dead protocols and prioritize txs that generate yield, unlock points or build positions you actually care about.`
       );
     }
 
     if (highValue > 0 && totalGasEth / (highValue || 1) > 0.002) {
       suggestions.push(
-        "You have some larger value moves where gas and slippage eat into your upside. Action: when size is big, compare 1–2 different routes/aggregators on Base before sending, and consider timing around calmer market periods."
+        "You have some larger value moves where gas and slippage eat into your upside. Action: when size is big, compare 1–2 different routes/aggregators on Base before sending and avoid peak volatility windows."
       );
     }
 
@@ -204,7 +195,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       address,
       chain: "Base",
-      period: periodParam,
       windowLabel,
       totalGasEth,
       txCount,
