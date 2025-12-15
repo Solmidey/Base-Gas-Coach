@@ -21,7 +21,7 @@ type GasAnalyzerProps = {
   address?: string;
 };
 
-type PeriodKey = "2m" | "3m";
+type PeriodKey = "2m";
 
 const HELPFUL_TOOLS = [
   {
@@ -51,7 +51,7 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [comingSoon, setComingSoon] = useState<string | null>(null);
-  const [period, setPeriod] = useState<PeriodKey>("3m");
+  const [period, setPeriod] = useState<PeriodKey>("2m");
 
   useEffect(() => {
     if (!address) {
@@ -99,13 +99,11 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
 
   const handleComingSoonClick = () => {
     setComingSoon(
-      "Right now we only analyze the last 2–3 months (within the free Etherscan tier). 6 months and 1 year views are coming soon."
+      "Right now we only analyze the last 2 months (within the free Etherscan tier). 3, 6 and 12 month views are coming soon."
     );
   };
 
-  const periodLabel =
-    data?.windowLabel ||
-    (period === "2m" ? "2 months" : "3 months");
+  const periodLabel = data?.windowLabel || "2 months";
 
   const renderActivePeriodButton = (key: PeriodKey, label: string) => {
     const isActive = period === key;
@@ -126,7 +124,7 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
     );
   };
 
-  const renderSoonButton = (key: "6m" | "1y", label: string) => (
+  const renderSoonButton = (key: "3m" | "6m" | "1y", label: string) => (
     <button
       key={key}
       type="button"
@@ -183,7 +181,7 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
         </div>
         <div className="flex gap-2">
           {renderActivePeriodButton("2m", "2 months")}
-          {renderActivePeriodButton("3m", "3 months")}
+          {renderSoonButton("3m", "3 months")}
           {renderSoonButton("6m", "6 months")}
           {renderSoonButton("1y", "1 year")}
         </div>
