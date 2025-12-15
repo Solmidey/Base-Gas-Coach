@@ -32,6 +32,7 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
     }
 
     const controller = new AbortController();
+
     const run = async () => {
       try {
         setLoading(true);
@@ -42,19 +43,15 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
           { signal: controller.signal }
         );
 
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(body.error || "Failed to analyze wallet");
-        }
+        const json = await res.json();
 
-        const json = (await res.json()) as any;
-
-        if (json.error) {
+        if (!res.ok || json.error) {
           setData(null);
-          setError(json.error);
-        } else {
-          setData(json as Analysis);
+          setError(json.error || "Failed to analyze wallet");
+          return;
         }
+
+        setData(json as Analysis);
       } catch (err: any) {
         if (err.name !== "AbortError") {
           setError(err.message || "Unknown error");
@@ -73,8 +70,8 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
   if (!address) {
     return (
       <div className="mt-6 rounded-xl border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-300">
-        Connect a Base wallet or enter an address above to see your gas habits and
-        get suggestions to improve earnings and cut unnecessary losses.
+        Connect a Base wallet or enter an address above to see how your gas habits
+        affect your upside, and get coaching to improve revenue and cut waste.
       </div>
     );
   }
@@ -99,9 +96,9 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
     );
   }
 
-  if (!data) {
-    return null;
-  }
+  if (!data) return null;
+
+  const isEmpty = data.txCount === 0;
 
   return (
     <div className="mt-6 space-y-4">
@@ -153,21 +150,36 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
       </div>
 
       <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4 text-xs text-slate-200">
-        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-          Behaviour snapshot
-        </div>
-        <p className="mb-1">
-          • Low-value txs ratio: {(data.smallTxRatio * 100).toFixed(1)}%
-        </p>
-        <p className="mb-1">
-          • Failed txs ratio: {(data.failedTxRatio * 100).toFixed(1)}%
-        </p>
-        <p className="mb-1">
-          • Zero-value / approval txs ratio: {(data.zeroValueRatio * 100).toFixed(1)}%
-        </p>
-        <p className="mt-2 text-slate-400">
-          Use this to see where gas is leaking versus where it helps you earn.
-        </p>
+        {isEmpty ? (
+          <>
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+              No Base activity yet
+            </div>
+            <p className="mb-1">
+              We didn&apos;t find transactions for this address on Base. The tips
+              below focus on how to start using Base in a way that maximizes upside
+              and minimizes wasted gas.
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Behaviour snapshot
+            </div>
+            <p className="mb-1">
+              • Low-value txs ratio: {(data.smallTxRatio * 100).toFixed(1)}%
+            </p>
+            <p className="mb-1">
+              • Failed txs ratio: {(data.failedTxRatio * 100).toFixed(1)}%
+            </p>
+            <p className="mb-1">
+              • Zero-value / approval txs ratio: {(data.zeroValueRatio * 100).toFixed(1)}%
+            </p>
+            <p className="mt-2 text-slate-400">
+              Use this to see where gas is leaking versus where it helps you earn.
+            </p>
+          </>
+        )}
       </div>
 
       <div className="rounded-xl border border-emerald-700/60 bg-emerald-950/30 p-4 text-xs text-emerald-100">
