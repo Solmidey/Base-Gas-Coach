@@ -6,6 +6,8 @@ import { AlertCircle, DollarSign, TrendingDown, Zap } from "lucide-react";
 type Analysis = {
   address: string;
   chain: string;
+  period?: string;
+  windowLabel?: string;
   totalGasEth: number;
   txCount: number;
   avgGasPerTx: number;
@@ -19,10 +21,13 @@ type GasAnalyzerProps = {
   address?: string;
 };
 
+type PeriodKey = "3m" | "6m" | "1y";
+
 export default function GasAnalyzer({ address }: GasAnalyzerProps) {
   const [data, setData] = useState<Analysis | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [period, setPeriod] = useState<PeriodKey>("3m");
 
   useEffect(() => {
     if (!address) {
@@ -39,7 +44,7 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
         setError(null);
 
         const res = await fetch(
-          `/api/gas-analyzer?address=${address}`,
+          `/api/gas-analyzer?address=${address}&period=${period}`,
           { signal: controller.signal }
         );
 
@@ -65,13 +70,35 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
     run();
 
     return () => controller.abort();
-  }, [address]);
+  }, [address, period]);
+
+  const periodLabel =
+    period === "6m" ? "6 months" : period === "1y" ? "1 year" : "3 months";
+
+  const renderPeriodButton = (key: PeriodKey, label: string) => {
+    const isActive = period === key;
+    return (
+      <button
+        key={key}
+        onClick={() => setPeriod(key)}
+        className={
+          "inline-flex items-center justify-center rounded-full px-3 py-1 text-[11px] font-medium transition " +
+          (isActive
+            ? "bg-emerald-500 text-slate-950"
+            : "bg-slate-900 text-slate-300 hover:bg-slate-800")
+        }
+      >
+        {label}
+      </button>
+    );
+  };
 
   if (!address) {
     return (
       <div className="mt-6 rounded-xl border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-300">
         Connect a Base wallet or enter an address above to see how your gas habits
-        affect your upside, and get coaching to improve revenue and cut waste.
+        affect your upside, and get clear, actionable coaching to improve revenue
+        and cut waste.
       </div>
     );
   }
@@ -79,7 +106,8 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
   if (loading) {
     return (
       <div className="mt-6 rounded-xl border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-300">
-        Analyzing your Base transaction history… this might take a few seconds.
+        Analyzing your Base activity for the last {periodLabel}… this might take a
+        few seconds.
       </div>
     );
   }
@@ -99,12 +127,25 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
   if (!data) return null;
 
   const isEmpty = data.txCount === 0;
+  const windowLabel = data.windowLabel || periodLabel;
 
   return (
     <div className="mt-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="text-xs text-slate-400">
+          Time window:{" "}
+          <span className="font-medium text-slate-100">{windowLabel}</span>
+        </div>
+        <div className="flex gap-2">
+          {renderPeriodButton("3m", "3 months")}
+          {renderPeriodButton("6m", "6 months")}
+          {renderPeriodButton("1y", "1 year")}
+        </div>
+      </div>
+
       <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
         <div className="text-xs uppercase tracking-wide text-slate-400">
-          Gas summary on {data.chain}
+          Gas summary on {data.chain} ({windowLabel})
         </div>
         <div className="mt-1 break-all text-xs text-slate-500">
           {data.address}
@@ -153,12 +194,12 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
         {isEmpty ? (
           <>
             <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-              No Base activity yet
+              No Base activity in this window
             </div>
             <p className="mb-1">
-              We didn&apos;t find transactions for this address on Base. The tips
-              below focus on how to start using Base in a way that maximizes upside
-              and minimizes wasted gas.
+              We didn&apos;t find transactions for this address on Base in the last{" "}
+              {windowLabel}. The tips below focus on how to start in a way that
+              maximizes upside and minimizes wasted gas.
             </p>
           </>
         ) : (
@@ -176,7 +217,8 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
               • Zero-value / approval txs ratio: {(data.zeroValueRatio * 100).toFixed(1)}%
             </p>
             <p className="mt-2 text-slate-400">
-              Use this to see where gas is leaking versus where it helps you earn.
+              Use this to see where gas is leaking versus where it helps you earn in
+              the last {windowLabel}.
             </p>
           </>
         )}

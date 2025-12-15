@@ -7,11 +7,13 @@ type ExplorerTx = {
   isError: string;
   from: string;
   to: string;
+  timeStamp: string;
 };
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const address = searchParams.get("address");
+  const periodParam = searchParams.get("period") ?? "3m";
 
   if (!address) {
     return NextResponse.json({ error: "Missing address" }, { status: 400 });
@@ -25,7 +27,20 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Etherscan V2 multi-chain endpoint, chainid=8453 for Base
+  let months = 3;
+  let windowLabel = "3 months";
+  if (periodParam === "6m") {
+    months = 6;
+    windowLabel = "6 months";
+  } else if (periodParam === "1y") {
+    months = 12;
+    windowLabel = "1 year";
+  }
+
+  const secondsPerMonth = 30 * 24 * 60 * 60;
+  const cutoffTimestamp =
+    Math.floor(Date.now() / 1000) - months * secondsPerMonth;
+
   const params = new URLSearchParams({
     apikey: apiKey,
     chainid: "8453",
@@ -35,7 +50,7 @@ export async function GET(req: NextRequest) {
     startblock: "0",
     endblock: "9999999999",
     page: "1",
-    offset: "100",
+    offset: "500",
     sort: "desc",
   });
 
@@ -52,11 +67,12 @@ export async function GET(req: NextRequest) {
 
     const json = await res.json();
 
-    // no tx case
     if (json.status === "0" && json.message === "No transactions found") {
       return NextResponse.json({
         address,
         chain: "Base",
+        period: periodParam,
+        windowLabel,
         totalGasEth: 0,
         txCount: 0,
         avgGasPerTx: 0,
@@ -64,13 +80,12 @@ export async function GET(req: NextRequest) {
         failedTxRatio: 0,
         zeroValueRatio: 0,
         suggestions: [
-          "We couldn't find any transactions for this address on Base yet.",
-          "If this wallet is active on other chains, bridge a bit to Base and focus on apps that reward activity so gas feeds future upside.",
+          `We couldn't find any transactions for this address on Base in the last ${windowLabel}.`,
+          "Action: bridge a small amount to Base, pick 1–2 protocols you actually like, and do 3–5 meaningful transactions (swaps, deposits, points programs) instead of random spam.",
         ],
       });
     }
 
-    // any other error from explorer (bad key, rate limit, etc.)
     if (json.status === "0") {
       const detail = json.result || json.message || "unknown error";
       console.error("Explorer API error:", json);
@@ -90,6 +105,30 @@ export async function GET(req: NextRequest) {
 
     const txs: ExplorerTx[] = json.result;
 
+    const periodTxs = txs.filter((tx) => {
+      const ts = Number(tx.timeStamp || "0");
+      return ts >= cutoffTimestamp;
+    });
+
+    if (periodTxs.length === 0) {
+      return NextResponse.json({
+        address,
+        chain: "Base",
+        period: periodParam,
+        windowLabel,
+        totalGasEth: 0,
+        txCount: 0,
+        avgGasPerTx: 0,
+        smallTxRatio: 0,
+        failedTxRatio: 0,
+        zeroValueRatio: 0,
+        suggestions: [
+          `No Base transactions for this address in the last ${windowLabel}.`,
+          "Action: when you move to Base, treat gas like marketing spend: pick protocols that reward activity (points, yield, airdrops) so almost every tx has upside.",
+        ],
+      });
+    }
+
     let totalGasEth = 0;
     let txCount = 0;
     let smallTx = 0;
@@ -97,7 +136,7 @@ export async function GET(req: NextRequest) {
     let zeroValue = 0;
     let highValue = 0;
 
-    for (const tx of txs) {
+    for (const tx of periodTxs) {
       const gasFeeEth =
         (Number(tx.gasUsed || "0") * Number(tx.gasPrice || "0")) / 1e18;
       const valueEth = Number(tx.value || "0") / 1e18;
@@ -120,38 +159,53 @@ export async function GET(req: NextRequest) {
 
     if (avgGasPerTx > 0.0005) {
       suggestions.push(
-        "Your average gas per tx on Base is relatively high. Batch actions where possible and avoid unnecessary experiments."
+        `Your average gas per transaction on Base over the last ${windowLabel} is ${avgGasPerTx.toFixed(
+          5
+        )} ETH. Action: batch related actions (approve + swap + LP) where you can and avoid 'testing' tiny trades on mainnet—use testnets or simulation tools first.`
       );
     }
-    if (smallTxRatio > 0.25) {
+
+    if (smallTxRatio > 0.3) {
       suggestions.push(
-        "You send many low-value txs that still cost gas. Focus on fewer, higher-conviction moves or bundle small actions."
+        `About ${(smallTxRatio * 100).toFixed(
+          1
+        )}% of your transactions are low-value but still pay full gas. Action: set a personal minimum size for trades and transfers, and group micro-moves into fewer, larger transactions.`
       );
     }
+
     if (failedTxRatio > 0.05) {
       suggestions.push(
-        "You have several failed txs. Double-check balances, slippage and approvals so you don't pay gas for failures."
+        `Roughly ${(failedTxRatio * 100).toFixed(
+          1
+        )}% of your transactions are failing. Action: before sending, double-check slippage, balance, and approval status; for risky interactions, start with one small 'test' tx instead of spamming retries.`
       );
     }
-    if (zeroValueRatio > 0.2) {
+
+    if (zeroValueRatio > 0.25) {
       suggestions.push(
-        "A lot of your txs are approvals/zero-value calls. Try to route gas into protocols that reward activity (points, yield, airdrops)."
+        `Around ${(zeroValueRatio * 100).toFixed(
+          1
+        )}% of your transactions move no direct value (approvals/operations). Action: regularly revoke approvals for dead protocols, and prioritize txs that either generate yield, unlock points, or move you into positions you actually care about.`
       );
     }
+
     if (highValue > 0 && totalGasEth / (highValue || 1) > 0.002) {
       suggestions.push(
-        "On big moves, compare routes/aggregators on Base to reduce slippage and fees so more upside stays with you."
+        "You have some larger value moves where gas and slippage eat into your upside. Action: when size is big, compare 1–2 different routes/aggregators on Base before sending, and consider timing around calmer market periods."
       );
     }
+
     if (suggestions.length === 0) {
       suggestions.push(
-        "Your Base gas usage looks fairly efficient. Keep prioritizing rewarded activity and avoiding pointless degen txs."
+        `Your Base gas usage over the last ${windowLabel} looks fairly efficient. Action: keep focusing activity on protocols that reward long-term usage and schedule a quick monthly review of your last 10 txs to prune unnecessary habits.`
       );
     }
 
     return NextResponse.json({
       address,
       chain: "Base",
+      period: periodParam,
+      windowLabel,
       totalGasEth,
       txCount,
       avgGasPerTx,
