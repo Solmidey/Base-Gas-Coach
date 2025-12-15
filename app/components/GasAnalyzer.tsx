@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertCircle, DollarSign, TrendingDown, Zap } from "lucide-react";
+import { AlertCircle, DollarSign, TrendingDown, Zap, Wallet } from "lucide-react";
+
+type ProtocolTip = {
+  id?: string;
+  name: string;
+  url: string;
+  description?: string;
+  reason?: string;
+};
 
 type Analysis = {
   address: string;
@@ -14,7 +22,9 @@ type Analysis = {
   smallTxRatio: number;
   failedTxRatio: number;
   zeroValueRatio: number;
+  balanceEth?: number | null;
   suggestions: string[];
+  protocolTips?: ProtocolTip[];
 };
 
 type GasAnalyzerProps = {
@@ -23,26 +33,31 @@ type GasAnalyzerProps = {
 
 type PeriodKey = "2m";
 
-const HELPFUL_TOOLS = [
+const FALLBACK_TOOLS: ProtocolTip[] = [
   {
     name: "Base Bridge",
     url: "https://bridge.base.org",
-    desc: "Move funds from other chains to Base in one step.",
+    description: "Bridge assets to and from Base.",
   },
   {
     name: "Aerodrome",
     url: "https://aerodrome.finance",
-    desc: "Base-native DEX for swaps and LP strategies.",
+    description: "Base-native DEX for swaps and LP.",
   },
   {
     name: "Uniswap on Base",
     url: "https://app.uniswap.org/swap?chain=base",
-    desc: "Route larger swaps efficiently on Base.",
+    description: "Router for efficient swaps on Base.",
   },
   {
     name: "Aave v3",
     url: "https://app.aave.com",
-    desc: "Lend/borrow on Base and turn idle assets into yield.",
+    description: "Lend/borrow on Base and turn idle assets into yield.",
+  },
+  {
+    name: "Beefy",
+    url: "https://app.beefy.finance",
+    description: "Yield optimizer vaults (including Base markets).",
   },
 ];
 
@@ -70,7 +85,7 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
 
         const res = await fetch(
           `/api/gas-analyzer?address=${address}&period=${period}`,
-          { signal: controller.signal }
+          { signal: controller.signal },
         );
 
         const json = await res.json();
@@ -99,7 +114,7 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
 
   const handleComingSoonClick = () => {
     setComingSoon(
-      "Right now we only analyze the last 2 months (within the free Etherscan tier). 3, 6 and 12 month views are coming soon."
+      "Right now we only analyze the last 2 months (within the free Etherscan tier). 3, 6 and 12 month views are coming soon.",
     );
   };
 
@@ -169,6 +184,15 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
   if (!data) return null;
 
   const isEmpty = data.txCount === 0;
+  const balanceDisplay =
+    typeof data.balanceEth === "number"
+      ? `${data.balanceEth.toFixed(4)} ETH`
+      : "—";
+
+  const toolsToRender =
+    data.protocolTips && data.protocolTips.length > 0
+      ? data.protocolTips
+      : FALLBACK_TOOLS;
 
   return (
     <div className="mt-6 space-y-4">
@@ -201,7 +225,7 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
           {data.address}
         </div>
 
-        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+        <div className="mt-4 grid gap-4 sm:grid-cols-4">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900">
               <DollarSign className="h-4 w-4" />
@@ -234,6 +258,18 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
               <div className="text-xs text-slate-400">Avg gas / tx</div>
               <div className="text-base font-semibold text-slate-50">
                 {data.avgGasPerTx.toFixed(5)} ETH
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900">
+              <Wallet className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="text-xs text-slate-400">Current balance</div>
+              <div className="text-base font-semibold text-slate-50">
+                {balanceDisplay}
               </div>
             </div>
           </div>
@@ -292,7 +328,7 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
           Helpful Base tools to apply this
         </div>
         <ul className="space-y-2">
-          {HELPFUL_TOOLS.map((tool) => (
+          {toolsToRender.map((tool) => (
             <li key={tool.name} className="leading-relaxed">
               <a
                 href={tool.url}
@@ -302,7 +338,10 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
               >
                 {tool.name}
               </a>
-              <span className="text-slate-300"> — {tool.desc}</span>
+              <span className="text-slate-300">
+                {" "}
+                — {tool.reason || tool.description}
+              </span>
             </li>
           ))}
         </ul>

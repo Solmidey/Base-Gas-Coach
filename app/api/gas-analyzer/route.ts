@@ -92,20 +92,18 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Only 2 months supported for now (free Etherscan tier friendly)
-  let months = 2;
-  let windowLabel = "2 months";
-  if (periodParam !== "2m") {
-    // front-end shows "coming soon" for other windows
-  }
+  const apiBaseUrl = "https://api.etherscan.io/v2/api";
 
+  // Only 2 months supported for now (front-end marks others as 'coming soon')
+  const months = 2;
+  const windowLabel = "2 months";
   const secondsPerMonth = 30 * 24 * 60 * 60;
   const cutoffTimestamp =
     Math.floor(Date.now() / 1000) - months * secondsPerMonth;
 
-  const params = new URLSearchParams({
+  const txParams = new URLSearchParams({
     apikey: apiKey,
-    chainid: "8453", // Base
+    chainid: "8453",
     module: "account",
     action: "txlist",
     address,
@@ -116,21 +114,21 @@ export async function GET(req: NextRequest) {
     sort: "desc",
   });
 
-  const url = `https://api.etherscan.io/v2/api?${params.toString()}`;
-
   try {
-    const res = await fetch(url, { cache: "no-store" });
+    const txRes = await fetch(`${apiBaseUrl}?${txParams.toString()}`, {
+      cache: "no-store",
+    });
 
-    if (!res.ok) {
+    if (!txRes.ok) {
       return NextResponse.json(
         { error: "Failed to reach explorer API" },
         { status: 502 },
       );
     }
 
-    const json = await res.json();
+    const txJson = await txRes.json();
 
-    if (json.status === "0" && json.message === "No transactions found") {
+    if (txJson.status === "0" && txJson.message === "No transactions found") {
       return NextResponse.json({
         address,
         chain: "Base",
@@ -142,6 +140,7 @@ export async function GET(req: NextRequest) {
         smallTxRatio: 0,
         failedTxRatio: 0,
         zeroValueRatio: 0,
+        balanceEth: null,
         suggestions: [
           `We couldn't find any transactions for this address on Base in the last ${windowLabel}.`,
           "Action: bridge a small amount to Base, pick 1–2 protocols you actually like, and do 3–5 meaningful transactions (swaps, deposits, points programs) instead of random spam.",
@@ -150,28 +149,64 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    if (json.status === "0") {
-      const detail = json.result || json.message || "unknown error";
-      console.error("Explorer API error:", json);
+    if (txJson.status === "0") {
+      const detail = txJson.result || txJson.message || "unknown error";
+      console.error("Explorer API error:", txJson);
       return NextResponse.json(
         { error: `Explorer API error: ${detail}` },
         { status: 502 },
       );
     }
 
-    if (!Array.isArray(json.result)) {
-      console.error("Explorer API unexpected response:", json);
+    if (!Array.isArray(txJson.result)) {
+      console.error("Explorer API unexpected response:", txJson);
       return NextResponse.json(
         { error: "Explorer API returned an unexpected format" },
         { status: 502 },
       );
     }
 
-    const txs: ExplorerTx[] = json.result;
+    const txs: ExplorerTx[] = txJson.result;
+
     const periodTxs = txs.filter((tx) => {
       const ts = Number(tx.timeStamp || "0");
       return ts >= cutoffTimestamp;
     });
+
+    // --- Fetch current wallet balance (best effort, non-fatal) ---
+    let balanceEth: number | null = null;
+    try {
+      const balParams = new URLSearchParams({
+        apikey: apiKey,
+        chainid: "8453",
+        module: "account",
+        action: "balance",
+        address,
+        tag: "latest",
+      });
+      const balRes = await fetch(`${apiBaseUrl}?${balParams.toString()}`, {
+        cache: "no-store",
+      });
+      if (balRes.ok) {
+        const balJson = await balRes.json();
+        if (balJson.status === "1") {
+          const raw =
+            typeof balJson.result === "string"
+              ? balJson.result
+              : balJson.result?.balance;
+          if (raw) {
+            const num = Number(raw);
+            if (!Number.isNaN(num)) {
+              balanceEth = num / 1e18;
+            }
+          }
+        } else {
+          console.error("Balance API error:", balJson);
+        }
+      }
+    } catch (balErr) {
+      console.error("Error fetching balance:", balErr);
+    }
 
     if (periodTxs.length === 0) {
       return NextResponse.json({
@@ -185,6 +220,7 @@ export async function GET(req: NextRequest) {
         smallTxRatio: 0,
         failedTxRatio: 0,
         zeroValueRatio: 0,
+        balanceEth,
         suggestions: [
           `No Base transactions for this address in the last ${windowLabel}.`,
           "Action: when you move to Base, treat gas like marketing spend—focus on protocols that reward activity (points, yield, airdrops) so almost every tx has upside.",
@@ -193,6 +229,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // --- Aggregate stats for the 2-month window ---
     let totalGasEth = 0;
     let txCount = 0;
     let smallTx = 0;
@@ -233,7 +270,7 @@ export async function GET(req: NextRequest) {
     const failedTxRatio = txCount ? failedTx / txCount : 0;
     const zeroValueRatio = txCount ? zeroValue / txCount : 0;
 
-    // --- Rule-based baseline suggestions (fallback if Groq fails / missing) ---
+    // --- Rule-based baseline (used if Groq missing/fails) ---
     const baseSuggestions: string[] = [];
     const baseProtocolIds: string[] = [];
 
@@ -290,7 +327,7 @@ export async function GET(req: NextRequest) {
     let suggestions = baseSuggestions;
     let protocolTips = mapProtocolIdsToTips(baseProtocolIds);
 
-    // --- Groq agent for wallet-specific coaching (openai/gpt-oss-120b) ---
+    // --- Groq agent: advanced, wallet-specific DeFi analysis ---
     const groqKey = process.env.GROQ_API_KEY;
     if (groqKey) {
       try {
@@ -306,6 +343,7 @@ export async function GET(req: NextRequest) {
             failedTxRatio,
             zeroValueRatio,
           },
+          balanceEth,
           sample: txSample,
           catalog: PROTOCOL_CATALOG,
         };
@@ -329,18 +367,26 @@ export async function GET(req: NextRequest) {
                 {
                   role: "system",
                   content:
-                    "You are Base Gas Coach, an onchain coach that gives precise, wallet-specific suggestions to improve gas efficiency and upside on Base. Avoid generic advice and avoid financial advice language. Focus on gas usage, batching, protocol choice, risk management and cutting waste.",
+                    "You are Base Gas Coach, an advanced DeFi power user who reads EVM wallet history like a trading journal. You are given: (1) stats for the last 2 months on Base, (2) a small transaction sample, (3) the current ETH balance on Base, and (4) a catalog of Base-native protocols.\n" +
+                    "- Focus on gas usage patterns, failed transactions, approvals, and how much of the wallet's gas is going to productive activity (yield, points, LP, restaking) vs waste.\n" +
+                    "- Speak as if you are coaching a friend who already understands crypto basics.\n" +
+                    "- Avoid generic advice that could apply to any wallet. Every tip MUST reference at least one concrete metric, ratio, or pattern from the data (e.g. failedTxRatio, zeroValueRatio, txCount, totalGasEth, balanceEth).\n" +
+                    "- Do NOT talk about prices, future returns, or tell the user to buy/hold/sell specific assets. Stay on operational decisions: batching, which kinds of protocols to route activity through, and how to reduce unnecessary gas burn.",
                 },
                 {
                   role: "user",
                   content:
-                    "Here is the wallet data and protocol catalog as JSON:\n" +
+                    "Wallet data and Base protocol catalog as JSON:\n" +
                     JSON.stringify(payload),
                 },
                 {
                   role: "user",
                   content:
-                    'Return ONLY a JSON object with this shape: {"tips":[{"tip":"string describing one concrete improvement","protocol_ids":["aerodrome","aave_base"],"reasons_by_protocol":{"aerodrome":"why it helps this wallet","aave_base":"why it helps"}}]}. Do not include any other text.',
+                    'Return ONLY a JSON object with this shape: {"tips":[{"tip":"one concrete improvement tailored to this wallet","protocol_ids":["aerodrome","aave_base"],"reasons_by_protocol":{"aerodrome":"why this specific wallet should consider Aerodrome given its patterns","aave_base":"why this wallet should consider Aave"}}, ...]}. \n' +
+                    "- 3 to 6 tips total.\n" +
+                    "- At least one tip must explicitly mention the wallet balance in ETH and how that should change behaviour (for small balances, avoiding gas-wasting micro-moves; for larger balances, batching and better routing).\n" +
+                    "- At least one tip must explicitly mention one of these ratios or counts: failedTxRatio, zeroValueRatio, smallTxRatio, txCount, totalGasEth, or avgGasPerTx.\n" +
+                    "- protocol_ids must only use ids from the provided catalog. If no protocol is relevant for a tip, use an empty array and omit reasons_by_protocol for that tip.",
                 },
               ],
             }),
@@ -413,6 +459,7 @@ export async function GET(req: NextRequest) {
       smallTxRatio,
       failedTxRatio,
       zeroValueRatio,
+      balanceEth,
       suggestions,
       protocolTips,
     });
