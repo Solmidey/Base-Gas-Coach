@@ -14,10 +14,7 @@ export async function GET(req: NextRequest) {
   const address = searchParams.get("address");
 
   if (!address) {
-    return NextResponse.json(
-      { error: "Missing address" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Missing address" }, { status: 400 });
   }
 
   const apiKey = process.env.BASESCAN_API_KEY;
@@ -32,7 +29,6 @@ export async function GET(req: NextRequest) {
 
   try {
     const res = await fetch(url, { cache: "no-store" });
-
     if (!res.ok) {
       return NextResponse.json(
         { error: "Failed to reach BaseScan" },
@@ -42,7 +38,7 @@ export async function GET(req: NextRequest) {
 
     const json = await res.json();
 
-    // Case 1: BaseScan explicitly says no tx found on Base
+    // no tx case
     if (json.status === "0" && json.message === "No transactions found") {
       return NextResponse.json({
         address,
@@ -55,18 +51,25 @@ export async function GET(req: NextRequest) {
         zeroValueRatio: 0,
         suggestions: [
           "We couldn't find any transactions for this address on Base yet.",
-          "If this wallet is active on other chains, consider bridging a small amount to Base and using apps that reward activity (points, yield, airdrops) so gas spent can come back as upside.",
+          "If this wallet is active on other chains, bridge a bit to Base and focus on apps that reward activity so gas feeds future upside.",
         ],
       });
     }
 
-    // Case 2: some other BaseScan problem (bad key, rate limit, etc.)
-    if (json.status !== "1" || !Array.isArray(json.result)) {
+    // any other NOTOK / error
+    if (json.status === "0") {
+      const detail = json.result || json.message || "unknown error";
+      console.error("BaseScan error:", json);
+      return NextResponse.json(
+        { error: `BaseScan error: ${detail}` },
+        { status: 502 }
+      );
+    }
+
+    if (!Array.isArray(json.result)) {
       console.error("BaseScan unexpected response:", json);
       return NextResponse.json(
-        {
-          error: `BaseScan error: ${json.message || "unexpected response"}`,
-        },
+        { error: "BaseScan returned an unexpected format" },
         { status: 502 }
       );
     }
@@ -88,18 +91,10 @@ export async function GET(req: NextRequest) {
       totalGasEth += gasFeeEth;
       txCount++;
 
-      if (valueEth < 0.01 && gasFeeEth > 0.0002) {
-        smallTx++;
-      }
-      if (tx.isError === "1") {
-        failedTx++;
-      }
-      if (valueEth === 0) {
-        zeroValue++;
-      }
-      if (valueEth >= 1) {
-        highValue++;
-      }
+      if (valueEth < 0.01 && gasFeeEth > 0.0002) smallTx++;
+      if (tx.isError === "1") failedTx++;
+      if (valueEth === 0) zeroValue++;
+      if (valueEth >= 1) highValue++;
     }
 
     const avgGasPerTx = txCount ? totalGasEth / txCount : 0;
@@ -111,37 +106,32 @@ export async function GET(req: NextRequest) {
 
     if (avgGasPerTx > 0.0005) {
       suggestions.push(
-        "Your average gas per transaction on Base is relatively high. Try batching actions when possible and avoid unnecessary onchain experiments."
+        "Your average gas per tx on Base is relatively high. Batch actions where possible and avoid unnecessary experiments."
       );
     }
-
     if (smallTxRatio > 0.25) {
       suggestions.push(
-        "You make a lot of low-value transactions that still cost gas. Focus on fewer, higher-conviction trades or bundle small actions together."
+        "You send many low-value txs that still cost gas. Focus on fewer, higher-conviction moves or bundle small actions."
       );
     }
-
     if (failedTxRatio > 0.05) {
       suggestions.push(
-        "You have several failed transactions. Double-check balances, slippage and approvals to avoid paying gas for failed txs."
+        "You have several failed txs. Double-check balances, slippage and approvals so you don't pay gas for failures."
       );
     }
-
     if (zeroValueRatio > 0.2) {
       suggestions.push(
-        "Many of your txs are approvals or zero-value calls. Wherever possible, route gas spend into protocols that reward activity (points, yield, airdrops) so it feeds future revenue."
+        "A lot of your txs are approvals/zero-value calls. Try to route gas into protocols that reward activity (points, yield, airdrops)."
       );
     }
-
     if (highValue > 0 && totalGasEth / (highValue || 1) > 0.002) {
       suggestions.push(
-        "On higher-value moves, compare routes and aggregators on Base to reduce slippage and fees so more upside stays with you."
+        "On big moves, compare routes/aggregators on Base to reduce slippage and fees so more upside stays with you."
       );
     }
-
     if (suggestions.length === 0) {
       suggestions.push(
-        "Your Base gas usage looks fairly efficient. Keep prioritizing protocols that reward activity and avoid unnecessary degen txs that don't feed future upside."
+        "Your Base gas usage looks fairly efficient. Keep prioritizing rewarded activity and avoiding pointless degen txs."
       );
     }
 
