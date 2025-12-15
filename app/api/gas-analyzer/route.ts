@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-type BaseScanTx = {
+type ExplorerTx = {
   gasUsed: string;
   gasPrice: string;
   value: string;
@@ -25,13 +25,27 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const url = `https://api.basescan.org/api?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&sort=desc&apikey=${apiKey}`;
+  // Etherscan V2 multi-chain endpoint, chainid=8453 for Base
+  const params = new URLSearchParams({
+    apikey: apiKey,
+    chainid: "8453",
+    module: "account",
+    action: "txlist",
+    address,
+    startblock: "0",
+    endblock: "9999999999",
+    page: "1",
+    offset: "100",
+    sort: "desc",
+  });
+
+  const url = `https://api.etherscan.io/v2/api?${params.toString()}`;
 
   try {
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) {
       return NextResponse.json(
-        { error: "Failed to reach BaseScan" },
+        { error: "Failed to reach explorer API" },
         { status: 502 }
       );
     }
@@ -56,25 +70,25 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // any other NOTOK / error
+    // any other error from explorer (bad key, rate limit, etc.)
     if (json.status === "0") {
       const detail = json.result || json.message || "unknown error";
-      console.error("BaseScan error:", json);
+      console.error("Explorer API error:", json);
       return NextResponse.json(
-        { error: `BaseScan error: ${detail}` },
+        { error: `Explorer API error: ${detail}` },
         { status: 502 }
       );
     }
 
     if (!Array.isArray(json.result)) {
-      console.error("BaseScan unexpected response:", json);
+      console.error("Explorer API unexpected response:", json);
       return NextResponse.json(
-        { error: "BaseScan returned an unexpected format" },
+        { error: "Explorer API returned an unexpected format" },
         { status: 502 }
       );
     }
 
-    const txs: BaseScanTx[] = json.result;
+    const txs: ExplorerTx[] = json.result;
 
     let totalGasEth = 0;
     let txCount = 0;
