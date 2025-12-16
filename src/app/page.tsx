@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Search, Wallet2 } from "lucide-react";
 import GasAnalyzer from "../components/GasAnalyzer";
-import Logo from "../components/Logo";
+import HeroHeader from "../components/HeroHeader";
 
 export default function Home() {
   const [inputAddress, setInputAddress] = useState("");
@@ -58,21 +58,8 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900 text-slate-50">
       <div className="mx-auto flex max-w-4xl flex-col px-4 py-10">
-        {/* HEADER WITH LOGO */}
-        <header className="mb-10 flex items-center gap-4">
-          <Logo size={52} />
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight">
-              Base Gas Coach
-            </h1>
-            <p className="mt-1 max-w-2xl text-sm text-slate-400">
-              Connect a Base wallet or paste any address. We pull its onchain
-              history from BaseScan, highlight where gas is leaking, and suggest
-              better habits so you can earn more and waste less while using
-              Base.
-            </p>
-          </div>
-        </header>
+        {/* HERO HEADER WITH LOGO */}
+        <HeroHeader />
 
         {/* ADDRESS INPUT + ACTIONS */}
         <section className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 sm:p-5">
