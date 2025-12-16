@@ -49,7 +49,7 @@ export default function Home() {
 
   const displayConnected =
     connectedWallet && connectedWallet.length > 0
-      ? `${connectedWallet.slice(0, 6)}...${connectedWallet.slice(-4)}`
+      ? connectedWallet.slice(0, 6) + "..." + connectedWallet.slice(-4)
       : "No wallet connected";
 
   const effectiveAddress = analysisAddress ?? connectedWallet ?? undefined;
@@ -61,7 +61,6 @@ export default function Home() {
         <section className="mb-8 rounded-3xl border border-slate-800 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950/80 p-5 sm:p-6">
           <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
             <div className="flex-shrink-0">
-              {/* Direct <img> so the logo is guaranteed to show */}
               <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl border border-sky-500/70 bg-slate-950 shadow-lg shadow-sky-900/40">
                 <img
                   src="/base-gas-coach-logo.png"
