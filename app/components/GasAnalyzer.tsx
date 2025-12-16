@@ -76,6 +76,8 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
     }
 
     const controller = new AbortController();
+    const friendlyError =
+      "Our explorer friend is having a tiny mood swing. Wait a minute, reload the page, and try again. If it keeps acting up, it's probably just the free API limits, not your wallet.";
 
     const run = async () => {
       try {
@@ -91,15 +93,17 @@ export default function GasAnalyzer({ address }: GasAnalyzerProps) {
         const json = await res.json();
 
         if (!res.ok || json.error) {
+          console.error("Explorer/API error:", json.error || res.statusText);
           setData(null);
-          setError(json.error || "Failed to analyze wallet");
+          setError(friendlyError);
           return;
         }
 
         setData(json as Analysis);
       } catch (err: any) {
         if (err.name !== "AbortError") {
-          setError(err.message || "Unknown error");
+          console.error("Explorer/API error:", err);
+          setError(friendlyError);
           setData(null);
         }
       } finally {
