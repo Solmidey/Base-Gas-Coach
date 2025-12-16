@@ -4,11 +4,12 @@ export const dynamic = "force-static";
 
 export function GET() {
   return NextResponse.json({
-    accountAssociation: {
-      header: "",
-      payload: "",
-      signature: ""
-    },
+      accountAssociation: {
+    header: "REAL_HEADER",
+    payload: "REAL_PAYLOAD",
+    signature: "REAL_SIGNATURE",
+  },
+
     miniapp: {
       version: "1",
       name: "Base Gas Coach",
