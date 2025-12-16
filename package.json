@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@farcaster/miniapp-sdk": "^0.2.1",
     "lucide-react": "^0.561.0",
     "next": "^14.2.0",
     "react": "^18.2.0",
