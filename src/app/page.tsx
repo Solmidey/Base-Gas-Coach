@@ -58,7 +58,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900 text-slate-50">
       <div className="mx-auto flex max-w-4xl flex-col px-4 py-10">
-        {/* Header with LOGO */}
+        {/* HEADER WITH LOGO */}
         <header className="mb-10 flex items-center gap-4">
           <Logo size={52} />
           <div>
@@ -67,14 +67,14 @@ export default function Home() {
             </h1>
             <p className="mt-1 max-w-2xl text-sm text-slate-400">
               Connect a Base wallet or paste any address. We pull its onchain
-              history from BaseScan, show where gas is leaking, and suggest
-              simple habits so you can earn more and waste less while using
+              history from BaseScan, highlight where gas is leaking, and suggest
+              better habits so you can earn more and waste less while using
               Base.
             </p>
           </div>
         </header>
 
-        {/* Address input + actions */}
+        {/* ADDRESS INPUT + ACTIONS */}
         <section className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 sm:p-5">
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-3 sm:flex-row">
@@ -87,7 +87,7 @@ export default function Home() {
                   <input
                     value={inputAddress}
                     onChange={(e) => setInputAddress(e.target.value)}
-                    placeholder="0x… or paste any Base address"
+                    placeholder="0x… Base wallet address"
                     className="h-8 flex-1 bg-transparent text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none"
                   />
                 </div>
@@ -116,13 +116,12 @@ export default function Home() {
             </div>
 
             <p className="mt-1 text-[11px] text-slate-500">
-              Connected wallet:&nbsp;
-              <span className="font-mono text-slate-300">{displayConnected}</span>
+              Optionally connect a wallet for one-click analysis.
             </p>
           </div>
         </section>
 
-        {/* Analysis */}
+        {/* ANALYSIS SECTION */}
         <GasAnalyzer address={effectiveAddress} />
       </div>
     </main>
