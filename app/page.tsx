@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Search, Zap } from "lucide-react";
+import Image from "next/image";
 import GasAnalyzer from "./components/GasAnalyzer";
 
 export default function Home() {
@@ -68,15 +69,29 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-slate-950 text-slate-50 flex flex-col items-center px-4 py-10">
       <div className="w-full max-w-3xl">
-        <header className="mb-8 space-y-3">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Base Gas Coach
-          </h1>
-          <p className="text-sm text-slate-300 leading-relaxed">
-            Connect a Base wallet or paste any address. We pull its onchain
-            history from BaseScan, highlight where gas is leaking, and suggest
-            better habits so you can earn more and waste less while using Base.
-          </p>
+        <header className="mb-8 rounded-2xl border border-slate-800 bg-slate-950/70 p-4 sm:p-5">
+          <div className="flex items-center gap-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-800 bg-slate-900/70">
+              <Image
+                src="/base-gas-coach-logo.png"
+                alt="Base Gas Coach logo"
+                width={56}
+                height={56}
+                className="rounded-xl"
+                priority
+              />
+            </div>
+            <div className="space-y-1">
+              <h1 className="text-2xl font-semibold tracking-tight">
+                Base Gas Coach
+              </h1>
+              <p className="text-sm text-slate-300 leading-relaxed">
+                Smarter gas usage for Base wallets. Connect or paste an address to
+                uncover where gas is leaking and get clear steps to keep more of
+                your upside.
+              </p>
+            </div>
+          </div>
         </header>
 
         <section className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 sm:p-5 space-y-4">
