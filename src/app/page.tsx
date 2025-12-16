@@ -22,7 +22,9 @@ export default function Home() {
 
     const anyWindow = window as any;
     if (!anyWindow.ethereum) {
-      alert("No wallet detected. Please install a wallet like MetaMask or Coinbase Wallet.");
+      alert(
+        "No wallet detected. Please install a wallet like MetaMask or Coinbase Wallet."
+      );
       return;
     }
 
@@ -56,17 +58,18 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900 text-slate-50">
       <div className="mx-auto flex max-w-4xl flex-col px-4 py-10">
-        {/* Header with logo */}
+        {/* Header with LOGO */}
         <header className="mb-10 flex items-center gap-4">
-          <Logo />
+          <Logo size={52} />
           <div>
             <h1 className="text-3xl font-semibold tracking-tight">
               Base Gas Coach
             </h1>
             <p className="mt-1 max-w-2xl text-sm text-slate-400">
-              Connect a Base wallet or paste any address. We pull its onchain history
-              from BaseScan, show where gas is leaking, and suggest simple habits so
-              you can earn more and waste less while using Base.
+              Connect a Base wallet or paste any address. We pull its onchain
+              history from BaseScan, show where gas is leaking, and suggest
+              simple habits so you can earn more and waste less while using
+              Base.
             </p>
           </div>
         </header>
@@ -90,7 +93,7 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="flex flex-col gap-2 sm:w-[180px]">
+              <div className="flex flex-col gap-2 sm:w-[190px]">
                 <button
                   type="button"
                   onClick={handleAnalyze}
