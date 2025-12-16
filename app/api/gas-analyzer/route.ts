@@ -75,6 +75,83 @@ function mapProtocolIdsToTips(
   return unique;
 }
 
+// Make balance fetching tolerant of different explorer response shapes
+async function fetchBalanceEth(
+  apiBaseUrl: string,
+  apiKey: string,
+  address: string,
+): Promise<number | null> {
+  const params = new URLSearchParams({
+    apikey: apiKey,
+    chainid: "8453",
+    module: "account",
+    action: "balance",
+    address,
+    tag: "latest",
+  });
+
+  try {
+    const res = await fetch(`${apiBaseUrl}?${params.toString()}`, {
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      console.error(
+        "Balance API HTTP error:",
+        res.status,
+        res.statusText,
+      );
+      return null;
+    }
+
+    const json: any = await res.json();
+
+    // Try several common shapes
+    let raw: unknown = null;
+
+    if (typeof json.result === "string") {
+      // v1-style: { status: "1", result: "123456..." }
+      raw = json.result;
+    } else if (
+      Array.isArray(json.result) &&
+      json.result[0] &&
+      typeof json.result[0].balance === "string"
+    ) {
+      // some explorers: { result: [{ balance: "123..." }] }
+      raw = json.result[0].balance;
+    } else if (
+      typeof json.result === "object" &&
+      json.result !== null
+    ) {
+      // v2 or custom wrapper: { result: { balance: "123..." } }
+      if (typeof json.result.balance === "string") {
+        raw = json.result.balance;
+      } else if (typeof json.result.Balance === "string") {
+        raw = json.result.Balance;
+      }
+    } else if (typeof json.balance === "string") {
+      // very custom: { balance: "123..." }
+      raw = json.balance;
+    }
+
+    if (!raw) {
+      console.error("Balance API unexpected payload, json =", json);
+      return null;
+    }
+
+    const num = Number(raw);
+    if (Number.isNaN(num)) {
+      console.error("Balance is not numeric:", raw);
+      return null;
+    }
+
+    return num / 1e18;
+  } catch (err) {
+    console.error("Error calling balance API:", err);
+    return null;
+  }
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const address = searchParams.get("address");
@@ -92,9 +169,10 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  // Use whatever explorer you wired earlier (BaseScan/Etherscan v2 style)
   const apiBaseUrl = "https://api.etherscan.io/v2/api";
 
-  // Only 2 months supported for now (front-end marks others as 'coming soon')
+  // Only 2 months supported for now
   const months = 2;
   const windowLabel = "2 months";
   const secondsPerMonth = 30 * 24 * 60 * 60;
@@ -173,40 +251,8 @@ export async function GET(req: NextRequest) {
       return ts >= cutoffTimestamp;
     });
 
-    // --- Fetch current wallet balance (best effort, non-fatal) ---
-    let balanceEth: number | null = null;
-    try {
-      const balParams = new URLSearchParams({
-        apikey: apiKey,
-        chainid: "8453",
-        module: "account",
-        action: "balance",
-        address,
-        tag: "latest",
-      });
-      const balRes = await fetch(`${apiBaseUrl}?${balParams.toString()}`, {
-        cache: "no-store",
-      });
-      if (balRes.ok) {
-        const balJson = await balRes.json();
-        if (balJson.status === "1") {
-          const raw =
-            typeof balJson.result === "string"
-              ? balJson.result
-              : balJson.result?.balance;
-          if (raw) {
-            const num = Number(raw);
-            if (!Number.isNaN(num)) {
-              balanceEth = num / 1e18;
-            }
-          }
-        } else {
-          console.error("Balance API error:", balJson);
-        }
-      }
-    } catch (balErr) {
-      console.error("Error fetching balance:", balErr);
-    }
+    // --- Balance (best effort) ---
+    const balanceEth = await fetchBalanceEth(apiBaseUrl, apiKey, address);
 
     if (periodTxs.length === 0) {
       return NextResponse.json({
@@ -229,7 +275,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // --- Aggregate stats for the 2-month window ---
+    // --- Aggregate stats ---
     let totalGasEth = 0;
     let txCount = 0;
     let smallTx = 0;
@@ -270,7 +316,7 @@ export async function GET(req: NextRequest) {
     const failedTxRatio = txCount ? failedTx / txCount : 0;
     const zeroValueRatio = txCount ? zeroValue / txCount : 0;
 
-    // --- Rule-based baseline (used if Groq missing/fails) ---
+    // --- Baseline suggestions (used if Groq missing/fails) ---
     const baseSuggestions: string[] = [];
     const baseProtocolIds: string[] = [];
 
@@ -327,7 +373,7 @@ export async function GET(req: NextRequest) {
     let suggestions = baseSuggestions;
     let protocolTips = mapProtocolIdsToTips(baseProtocolIds);
 
-    // --- Groq agent: simple-language, wallet-specific DeFi analysis ---
+    // --- Groq agent remains the same as before ---
     const groqKey = process.env.GROQ_API_KEY;
     if (groqKey) {
       try {
@@ -371,10 +417,9 @@ export async function GET(req: NextRequest) {
                     "You are given: (1) stats for the last 2 months on Base, (2) a small transaction sample, (3) the current ETH balance on Base, and (4) a catalog of Base-native protocols.\n" +
                     "- Speak in simple, clear English that anyone can follow, even if this is their first time using DeFi.\n" +
                     "- Prefer short sentences and plain words. Avoid heavy jargon.\n" +
-                    "- If you must use a technical word (like 'liquidity pool' or 'slippage'), add a short explanation in brackets, e.g. 'slippage (price moving while your trade is pending)'.\n" +
-                    "- Focus on what THIS wallet actually did: gas usage, failed transactions, approvals, small frequent moves, and whether gas is going to useful actions (yield, points, LP) or waste.\n" +
-                    "- Sound like you are coaching a friend. Be kind but honest.\n" +
-                    "- Do NOT give generic advice that could apply to everyone. Every tip MUST mention at least one concrete metric, ratio, or pattern from the data (failedTxRatio, zeroValueRatio, txCount, totalGasEth, avgGasPerTx, balanceEth, or something obvious from the sample).",
+                    "- If you must use a technical word (like 'liquidity pool' or 'slippage'), add a short explanation in brackets.\n" +
+                    "- Focus on what THIS wallet actually did: gas usage, failed transactions, approvals, small frequent moves, and whether gas is going to useful actions or waste.\n" +
+                    "- Every tip must mention at least one concrete metric or pattern from the data.",
                 },
                 {
                   role: "user",
@@ -388,10 +433,9 @@ export async function GET(req: NextRequest) {
                     'Return ONLY a JSON object with this shape: {"tips":[{"tip":"one concrete improvement tailored to this wallet","protocol_ids":["aerodrome","aave_base"],"reasons_by_protocol":{"aerodrome":"why this specific wallet should consider Aerodrome given its patterns","aave_base":"why this wallet should consider Aave"}}, ...]}.\n' +
                     "- Write 3 to 6 tips total.\n" +
                     "- Each tip must be 1–3 short sentences, using simple language and no fluff.\n" +
-                    "- At least one tip must clearly mention the wallet balance in ETH (balanceEth) and how that should change behaviour. For small balances, focus on avoiding many tiny transactions. For larger balances, focus on batching and better routing.\n" +
-                    "- At least one tip must clearly mention one of these: failedTxRatio, zeroValueRatio, smallTxRatio, txCount, totalGasEth, or avgGasPerTx, and explain what that number means in plain language.\n" +
-                    "- Every tip must be wallet-specific. Do not say 'everyone should' or 'always do this'. Talk directly about what THIS wallet is doing and how to improve it.\n" +
-                    "- protocol_ids must only use ids from the provided catalog. If no protocol is relevant for a tip, use an empty array and omit reasons_by_protocol for that tip.",
+                    "- At least one tip must clearly mention the wallet balance in ETH (balanceEth) and how that should change behaviour.\n" +
+                    "- At least one tip must clearly mention one of these: failedTxRatio, zeroValueRatio, smallTxRatio, txCount, totalGasEth, or avgGasPerTx.\n" +
+                    "- Every tip must be wallet-specific.",
                 },
               ],
             }),
