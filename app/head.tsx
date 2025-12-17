@@ -1,6 +1,5 @@
 export default function Head() {
-  const url = "https://base-gas-coach.vercel.app";
-  const image = `${url}/og-image.png`;
+  const baseUrl = "https://base-gas-coach.vercel.app";
 
   return (
     <>
@@ -16,8 +15,8 @@ export default function Head() {
         property="og:description"
         content="See where your gas goes on Base and cut waste."
       />
-      <meta property="og:url" content={url} />
-      <meta property="og:image" content={image} />
+      <meta property="og:url" content={baseUrl} />
+      <meta property="og:image" content={`${baseUrl}/og-image.png`} />
       <meta property="og:image:width" content="1200" />
       <meta property="og:image:height" content="630" />
       <meta property="og:image:alt" content="Base Gas Coach" />
@@ -29,14 +28,17 @@ export default function Head() {
         name="twitter:description"
         content="See where your gas goes on Base and cut waste."
       />
-      <meta name="twitter:image" content={image} />
+      <meta name="twitter:image" content={`${baseUrl}/og-image.png`} />
 
-      {/* Farcaster vNext frame for embed */}
+      {/* Farcaster frame / miniapp launch */}
       <meta name="fc:frame" content="vNext" />
-      <meta name="fc:frame:image" content={image} />
+      <meta name="fc:frame:image" content={`${baseUrl}/og-image.png`} />
       <meta name="fc:frame:button:1" content="Open Base Gas Coach" />
       <meta name="fc:frame:button:1:action" content="launch" />
-      <meta name="fc:frame:button:1:target" content={url} />
+      <meta
+        name="fc:frame:button:1:target"
+        content="base-gas-coach"
+      />
     </>
   );
 }
