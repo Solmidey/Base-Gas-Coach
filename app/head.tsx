@@ -7,7 +7,27 @@ export default function Head() {
         content="See where your gas goes on Base and cut waste."
       />
 
-      {/* Open Graph */}
+      {/* Open Frames embed */}
+      <meta name="of:version" content="vNext" />
+      <meta name="of:accepts:frame" content="vNext" />
+
+      {/* Farcaster frame (older fc:frame tags) */}
+      <meta name="fc:frame" content="vNext" />
+      <meta
+        name="fc:frame:image"
+        content="https://base-gas-coach.vercel.app/og-image.png"
+      />
+      <meta
+        name="fc:frame:button:1"
+        content="Open Base Gas Coach"
+      />
+      <meta name="fc:frame:button:1:action" content="link" />
+      <meta
+        name="fc:frame:button:1:target"
+        content="https://base-gas-coach.vercel.app"
+      />
+
+      {/* OpenGraph / Twitter */}
       <meta property="og:title" content="Base Gas Coach" />
       <meta
         property="og:description"
@@ -22,7 +42,6 @@ export default function Head() {
       <meta property="og:image:height" content="630" />
       <meta property="og:image:alt" content="Base Gas Coach" />
 
-      {/* Twitter */}
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:title" content="Base Gas Coach" />
       <meta
@@ -33,24 +52,6 @@ export default function Head() {
         name="twitter:image"
         content="https://base-gas-coach.vercel.app/og-image.png"
       />
-
-      {/* Farcaster Frame (for embed) */}
-      <meta name="fc:frame" content="vNext" />
-      <meta
-        name="fc:frame:image"
-        content="https://base-gas-coach.vercel.app/og-image.png"
-      />
-      <meta name="fc:frame:button:1" content="Open Base Gas Coach" />
-      <meta name="fc:frame:button:1:action" content="link" />
-      <meta
-        name="fc:frame:button:1:target"
-        content="https://base-gas-coach.vercel.app"
-      />
-
-      {/* OpenFrames embed tags – these are what the Embed Tool expects */}
-      <meta name="of:version" content="vNext" />
-      <meta name="of:kind" content="frame" />
-      <meta name="of:accepts:farcaster" content="vNext" />
     </>
   );
 }
