@@ -1,5 +1,6 @@
-import type { Metadata } from "next";
 import "./globals.css";
+import type { Metadata } from "next";
+import Head from "next/head";
 
 const APP_URL = "https://base-gas-coach.vercel.app";
 const OG_IMAGE = `${APP_URL}/og-image.png`;
@@ -19,13 +20,6 @@ export const metadata: Metadata = {
     description: "See where your gas goes on Base and cut waste.",
     images: [OG_IMAGE],
   },
-  other: {
-    "fc:frame": "vNext",
-    "fc:frame:image": OG_IMAGE,
-    "fc:frame:button:1": "Open Base Gas Coach",
-    "fc:frame:button:1:action": "link",
-    "fc:frame:button:1:target": APP_URL,
-  },
 };
 
 export default function RootLayout({
@@ -35,6 +29,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <Head>
+        <meta property="fc:frame" content="vNext" />
+        <meta property="fc:frame:image" content={OG_IMAGE} />
+        <meta property="fc:frame:button:1" content="Open Base Gas Coach" />
+        <meta property="fc:frame:button:1:action" content="link" />
+        <meta property="fc:frame:button:1:target" content={APP_URL} />
+      </Head>
       <body>{children}</body>
     </html>
   );
